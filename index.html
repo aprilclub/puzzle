@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Telegram Puzzle Game</title>
+    <style>
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-button-color: #3390ec;
+            --tg-theme-button-text-color: #ffffff;
+            --tg-theme-secondary-bg-color: #f4f4f5;
+            --tg-theme-hint-color: #999999;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --tg-theme-bg-color: #1c1c1e;
+                --tg-theme-text-color: #ffffff;
+                --tg-theme-secondary-bg-color: #2c2c2e;
+            }
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Screens */
+        .screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+            transition: opacity 0.3s ease;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* Upload Screen */
+        .upload-container {
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .upload-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            color: var(--tg-theme-button-color);
+        }
+
+        .btn {
+            background-color: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            width: 100%;
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-secondary {
+            background-color: var(--tg-theme-secondary-bg-color);
+            color: var(--tg-theme-text-color);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Game Screen */
+        .game-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .stats {
+            font-size: 14px;
+            color: var(--tg-theme-hint-color);
+        }
+
+        .puzzle-container {
+            position: relative;
+            width: 100%;
+            max-width: 360px;
+            aspect-ratio: 1;
+            background-color: var(--tg-theme-secondary-bg-color);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            touch-action: none; /* Prevent scrolling while dragging */
+        }
+
+        .puzzle-grid {
+            display: grid;
+            width: 100%;
+            height: 100%;
+            /* Grid template columns set by JS */
+        }
+
+        .puzzle-piece {
+            background-size: 100% 100%; /* Will be overridden by JS to correct size */
+            cursor: pointer;
+            transition: transform 0.2s ease, filter 0.2s;
+            position: relative;
+            box-sizing: border-box;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .puzzle-piece.selected {
+            filter: brightness(1.2);
+            z-index: 10;
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(0,0,0,0.3);
+            border: 2px solid var(--tg-theme-button-color);
+        }
+
+        .puzzle-piece.correct {
+            /* Optional visual cue for correct position */
+        }
+
+        /* Controls */
+        .controls {
+            margin-top: 20px;
+            width: 100%;
+            max-width: 360px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal {
+            background: var(--tg-theme-bg-color);
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 80%;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .modal h2 {
+            margin: 0 0 10px 0;
+            color: var(--tg-theme-button-color);
+        }
+
+        .modal p {
+            margin: 0 0 20px 0;
+            color: var(--tg-theme-text-color);
+        }
+
+        /* Difficulty Selector */
+        .difficulty-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: var(--tg-theme-secondary-bg-color);
+            padding: 4px;
+            border-radius: 10px;
+        }
+
+        .diff-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            background: transparent;
+            color: var(--tg-theme-text-color);
+            cursor: pointer;
+            font-size: 14px;
+            flex: 1;
+        }
+
+        .diff-btn.active {
+            background: var(--tg-theme-bg-color);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            font-weight: bold;
+        }
+
+        /* Preview Image */
+        #preview-img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .hint-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Upload Screen -->
+    <div id="upload-screen" class="screen active">
+        <div class="upload-container">
+            <div class="upload-icon">🧩</div>
+            <h1>Собери Пазл</h1>
+            <p style="color: var(--tg-theme-hint-color); margin-bottom: 30px;">
+                Загрузите фото или используйте случайное изображение
+            </p>
+            
+            <img id="preview-img" src="" alt="Preview">
+
+            <label class="btn">
+                📷 Загрузить фото
+                <input type="file" id="file-input" accept="image/*">
+            </label>
+            
+            <button class="btn btn-secondary" id="random-btn">
+                🎲 Случайное фото
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <div class="game-header">
+            <button class="btn btn-secondary" style="width: auto; padding: 8px 16px; margin: 0;" onclick="goBack()">
+                ← Назад
+            </button>
+            <div class="stats">
+                Ходы: <span id="move-count">0</span>
+            </div>
+        </div>
+
+        <div class="puzzle-container" id="puzzle-container">
+            <button class="hint-btn" id="hint-btn" title="Подсказка">👁️</button>
+            <div class="puzzle-grid" id="puzzle-grid">
+                <!-- Pieces generated here -->
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-secondary" id="shuffle-btn">🔀 Перемешать</button>
+            <button class="btn" id="check-btn">✅ Проверить</button>
+        </div>
+        
+        <div class="difficulty-selector" style="margin-top: 15px;">
+            <button class="diff-btn" data-size="3">3x3</button>
+            <button class="diff-btn active" data-size="4">4x4</button>
+            <button class="diff-btn" data-size="5">5x5</button>
+        </div>
+    </div>
+
+    <!-- Win Modal -->
+    <div class="modal-overlay" id="win-modal">
+        <div class="modal">
+            <h2>Победа! 🎉</h2>
+            <p>Вы собрали пазл за <span id="final-moves">0</span> ходов.</p>
+            <button class="btn" onclick="resetGame()">Играть снова</button>
+            <button class="btn btn-secondary" style="margin-top: 10px;" onclick="closeModal()">Закрыть</button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let gridSize = 4;
+        let pieces = [];
+        let moves = 0;
+        let selectedPieceIndex = -1;
+        let currentImageSrc = 'https://www.aprilclub.net/foto/photos/archive/love/alla-puzzl.jpg';
+        let isSolved = false;
+
+        // DOM Elements
+        const uploadScreen = document.getElementById('upload-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const fileInput = document.getElementById('file-input');
+        const previewImg = document.getElementById('preview-img');
+        const puzzleGrid = document.getElementById('puzzle-grid');
+        const moveCountEl = document.getElementById('move-count');
+        const winModal = document.getElementById('win-modal');
+        const finalMovesEl = document.getElementById('final-moves');
+        const hintBtn = document.getElementById('hint-btn');
+        const diffButtons = document.querySelectorAll('.diff-btn');
+
+        // Initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load default image
+            previewImg.src = currentImageSrc;
+            previewImg.style.display = 'block';
+        });
+
+        // Event Listeners
+        fileInput.addEventListener('change', handleFileUpload);
+        
+        document.getElementById('random-btn').addEventListener('click', () => {
+            // Just reload the page or pick a new random one. 
+            // For demo, we keep the generated one but reset game.
+            startGame();
+        });
+
+        document.getElementById('shuffle-btn').addEventListener('click', shufflePieces);
+        document.getElementById('check-btn').addEventListener('click', checkWin);
+        
+        hintBtn.addEventListener('click', toggleHint);
+
+        diffButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                diffButtons.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                gridSize = parseInt(e.target.dataset.size);
+                startGame();
+            });
+        });
+
+        // Functions
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    currentImageSrc = event.target.result;
+                    previewImg.src = currentImageSrc;
+                    previewImg.style.display = 'block';
+                    // Auto start game after upload
+                    setTimeout(startGame, 500);
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function goBack() {
+            gameScreen.classList.remove('active');
+            uploadScreen.classList.add('active');
+            isSolved = false;
+        }
+
+        function startGame() {
+            uploadScreen.classList.remove('active');
+            gameScreen.classList.add('active');
+            moves = 0;
+            moveCountEl.innerText = moves;
+            isSolved = false;
+            createPuzzle();
+        }
+
+        function createPuzzle() {
+            puzzleGrid.innerHTML = '';
+            pieces = [];
+            
+            // Calculate piece size percentage
+            const pieceSize = 100 / gridSize;
+            
+            puzzleGrid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+            puzzleGrid.style.gridTemplateRows = `repeat(${gridSize}, 1fr)`;
+
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const piece = document.createElement('div');
+                piece.classList.add('puzzle-piece');
+                
+                // Calculate row and col for background position
+                const row = Math.floor(i / gridSize);
+                const col = i % gridSize;
+
+                // Set background image
+                piece.style.backgroundImage = `url(${currentImageSrc})`;
+                piece.style.backgroundSize = `${gridSize * 100}%`;
+                piece.style.backgroundPosition = `${col * (100 / (gridSize - 1))}% ${row * (100 / (gridSize - 1))}%`;
+                
+                // Store original index to check win condition
+                piece.dataset.originalIndex = i;
+                piece.dataset.currentIndex = i;
+                
+                // Add click handler
+                piece.addEventListener('click', () => handlePieceClick(i));
+                
+                pieces.push(piece);
+                puzzleGrid.appendChild(piece);
+            }
+            
+            shufflePieces();
+        }
+
+        function shufflePieces() {
+            // Fisher-Yates shuffle
+            for (let i = pieces.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                swapPiecesDOM(i, j);
+            }
+            moves = 0;
+            moveCountEl.innerText = moves;
+            isSolved = false;
+            deselectAll();
+        }
+
+        function handlePieceClick(index) {
+            if (isSolved) return;
+
+            if (selectedPieceIndex === -1) {
+                // Select first piece
+                selectedPieceIndex = index;
+                pieces[index].classList.add('selected');
+            } else if (selectedPieceIndex === index) {
+                // Deselect if clicking same piece
+                selectedPieceIndex = -1;
+                pieces[index].classList.remove('selected');
+            } else {
+                // Swap
+                swapPiecesDOM(selectedPieceIndex, index);
+                moves++;
+                moveCountEl.innerText = moves;
+                selectedPieceIndex = -1;
+                deselectAll();
+                
+                // Auto check win occasionally or let user check
+                // checkWin(); 
+            }
+        }
+
+        function swapPiecesDOM(idx1, idx2) {
+            const temp = pieces[idx1];
+            pieces[idx1] = pieces[idx2];
+            pieces[idx2] = temp;
+            
+            // Re-append to DOM to reflect new order
+            // Actually, simpler to just swap the background positions or the DOM nodes
+            // Let's swap the DOM nodes visually but keep the array logic clean
+            
+            const node1 = puzzleGrid.children[idx1];
+            const node2 = puzzleGrid.children[idx2];
+            
+            // Swap styles (background position) effectively swaps the image content
+            const bg1 = node1.style.backgroundPosition;
+            const bg2 = node2.style.backgroundPosition;
+            const orig1 = node1.dataset.originalIndex;
+            const orig2 = node2.dataset.originalIndex;
+
+            node1.style.backgroundPosition = bg2;
+            node2.style.backgroundPosition = bg1;
+            
+            node1.dataset.originalIndex = orig2;
+            node2.dataset.originalIndex = orig1;
+
+            // Visual animation class could be added here
+        }
+
+        function deselectAll() {
+            pieces.forEach(p => p.classList.remove('selected'));
+        }
+
+        function checkWin() {
+            let isWin = true;
+            const currentPieces = Array.from(puzzleGrid.children);
+            
+            currentPieces.forEach((piece, index) => {
+                if (parseInt(piece.dataset.originalIndex) !== index) {
+                    isWin = false;
+                }
+            });
+
+            if (isWin) {
+                isSolved = true;
+                finalMovesEl.innerText = moves;
+                winModal.style.display = 'flex';
+                // Confetti effect could go here
+            } else {
+                // Shake animation for wrong answer
+                puzzleGrid.style.animation = 'shake 0.5s';
+                setTimeout(() => puzzleGrid.style.animation = '', 500);
+            }
+        }
+
+        function toggleHint() {
+            const overlay = document.createElement('div');
+            overlay.style.position = 'absolute';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.backgroundImage = `url(${currentImageSrc})`;
+            overlay.style.backgroundSize = 'cover';
+            overlay.style.zIndex = '5';
+            overlay.style.opacity = '0.8';
+            overlay.style.transition = 'opacity 0.3s';
+            overlay.id = 'hint-overlay';
+            
+            const existing = document.getElementById('hint-overlay');
+            if (existing) {
+                existing.style.opacity = '0';
+                setTimeout(() => existing.remove(), 300);
+            } else {
+                document.getElementById('puzzle-container').appendChild(overlay);
+                setTimeout(() => {
+                    if(overlay) overlay.style.opacity = '0';
+                    setTimeout(() => overlay && overlay.remove(), 300);
+                }, 1500);
+            }
+        }
+
+        function resetGame() {
+            closeModal();
+            startGame();
+        }
+
+        function closeModal() {
+            winModal.style.display = 'none';
+        }
+
+        // Add shake animation to CSS dynamically
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = `
+            @keyframes shake {
+                0% { transform: translateX(0); }
+                25% { transform: translateX(-5px); }
+                50% { transform: translateX(5px); }
+                75% { transform: translateX(-5px); }
+                100% { transform: translateX(0); }
+            }
+        `;
+        document.head.appendChild(styleSheet);
+
+    </script>
+</body>
+</html>
+
